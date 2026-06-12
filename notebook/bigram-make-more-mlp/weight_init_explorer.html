@@ -1,0 +1,207 @@
+
+<style>
+.metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 16px; text-align: center; }
+.metric-label { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 4px; }
+.metric-value { font-size: 22px; font-weight: 500; margin: 0; }
+.badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
+.badge-good { background: var(--color-background-success); color: var(--color-text-success); }
+.badge-warn { background: var(--color-background-warning); color: var(--color-text-warning); }
+.badge-bad  { background: var(--color-background-danger);  color: var(--color-text-danger);  }
+.code-line { font-family: var(--font-mono); font-size: 12px; background: var(--color-background-secondary); padding: 8px 12px; border-radius: var(--border-radius-md); margin: 0; color: var(--color-text-secondary); }
+.code-highlight { color: var(--color-text-warning); }
+</style>
+<h2 class="sr-only">Weight initialization explorer: adjust weight scale to see how it affects tanh activations and gradients in your MLP</h2>
+
+<div style="padding: 1rem 0 0;">
+  <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 12px;">Simulating your MLP's hidden layer (fan_in = 30, n_hidden = 200)</p>
+
+  <pre class="code-line">W1 = torch.randn((30, 200), generator=g) <span class="code-highlight" id="scale-annotation">← std ≈ 1.0 (too large!)</span></pre>
+
+  <div style="display:flex; align-items:center; gap:12px; margin: 16px 0 8px;">
+    <span style="font-size:13px; color:var(--color-text-secondary); white-space:nowrap;">Weight scale</span>
+    <input type="range" id="scale-slider" min="1" max="300" value="100" step="1" style="flex:1;">
+    <span style="font-size:14px; font-weight:500; min-width:52px; text-align:right;" id="scale-label">× 1.00</span>
+  </div>
+
+  <div style="display:flex; gap:8px; margin-bottom:4px; font-size:11px; flex-wrap:wrap;">
+    <button onclick="setScale(1)" style="font-size:11px; padding:3px 10px;">Unscaled (× 1.0)</button>
+    <button onclick="setScale(18)" style="font-size:11px; padding:3px 10px;">Kaiming init (× 0.18)</button>
+    <button onclick="setScale(1)" id="btn-tiny" style="font-size:11px; padding:3px 10px; display:none;">Too small (× 0.01)</button>
+  </div>
+
+  <div style="display:flex; gap:8px; margin-bottom:4px; font-size:11px; flex-wrap:wrap;">
+    <button onclick="setScale(1)"  style="font-size:11px; padding:3px 8px;">× 1.0</button>
+    <button onclick="setScale(50)" style="font-size:11px; padding:3px 8px;">× 0.5</button>
+    <button onclick="setScale(18)" style="font-size:11px; padding:3px 8px;">× 0.18</button>
+    <button onclick="setScale(5)"  style="font-size:11px; padding:3px 8px;">× 0.05</button>
+    <button onclick="setScale(1)"  style="font-size:11px; padding:3px 8px; display:none;" id="btn001">× 0.01</button>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:16px 0;">
+    <div class="metric-card">
+      <p class="metric-label">% neurons saturated</p>
+      <p class="metric-value" id="m-sat">—</p>
+      <span class="badge" id="m-sat-badge"></span>
+    </div>
+    <div class="metric-card">
+      <p class="metric-label">mean gradient</p>
+      <p class="metric-value" id="m-grad">—</p>
+      <span class="badge" id="m-grad-badge"></span>
+    </div>
+    <div class="metric-card">
+      <p class="metric-label">pre-act std</p>
+      <p class="metric-value" id="m-std">—</p>
+      <span class="badge" id="m-std-badge"></span>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+    <div>
+      <p style="font-size:12px; color:var(--color-text-secondary); margin:0 0 6px;">h = tanh(hpreact) distribution</p>
+      <div style="position:relative; height:160px;">
+        <canvas id="chartH" role="img" aria-label="Histogram of tanh activation values h across hidden neurons"></canvas>
+      </div>
+      <p style="font-size:11px; color:var(--color-text-secondary); margin:4px 0 0; text-align:center;">good: spread evenly in (−1, 1). bad: spiky at ±1</p>
+    </div>
+    <div>
+      <p style="font-size:12px; color:var(--color-text-secondary); margin:0 0 6px;">gradient = 1 − h² distribution</p>
+      <div style="position:relative; height:160px;">
+        <canvas id="chartG" role="img" aria-label="Histogram of tanh gradient values 1 minus h squared across hidden neurons"></canvas>
+      </div>
+      <p style="font-size:11px; color:var(--color-text-secondary); margin:4px 0 0; text-align:center;">good: values near 1. bad: values piled near 0</p>
+    </div>
+  </div>
+
+  <div id="insight-box" style="font-size:13px; border-left:2px solid var(--color-border-info); padding:8px 12px; color:var(--color-text-secondary); margin-top:8px; border-radius:0 4px 4px 0; background:var(--color-background-info);"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+const N = 3000;
+const FAN_IN = 30;
+
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function simulate(scale) {
+  const h = [], grads = [], pres = [];
+  for (let i = 0; i < N; i++) {
+    let pre = 0;
+    for (let j = 0; j < FAN_IN; j++) pre += randn() * scale;
+    pres.push(pre);
+    const hv = Math.tanh(pre);
+    h.push(hv);
+    grads.push(1 - hv * hv);
+  }
+  return { h, grads, pres };
+}
+
+function histogram(data, bins, lo, hi) {
+  const w = (hi - lo) / bins;
+  const counts = new Array(bins).fill(0);
+  for (const v of data) {
+    const idx = Math.floor((v - lo) / w);
+    if (idx >= 0 && idx < bins) counts[idx]++;
+  }
+  const labels = Array.from({length: bins}, (_, i) => (lo + (i + 0.5) * w).toFixed(2));
+  return { labels, counts };
+}
+
+function mean(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
+function std(arr) {
+  const m = mean(arr);
+  return Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length);
+}
+
+const textColor = dark ? '#c2c0b6' : '#5f5e5a';
+const gridColor = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+
+function makeChart(id, color, borderColor) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: color, borderColor: borderColor, borderWidth: 0.5, borderRadius: 2 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 150 },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 7, maxRotation: 0 }, grid: { color: gridColor } },
+        y: { ticks: { color: textColor, font: { size: 10 } }, grid: { color: gridColor } }
+      }
+    }
+  });
+}
+
+const chartH = makeChart('chartH', dark ? 'rgba(83,74,183,0.7)' : 'rgba(83,74,183,0.55)', dark ? '#afa9ec' : '#534ab7');
+const chartG = makeChart('chartG', dark ? 'rgba(15,110,86,0.7)' : 'rgba(15,110,86,0.55)', dark ? '#5dcaa5' : '#0f6e56');
+
+function setScale(sliderVal) {
+  document.getElementById('scale-slider').value = sliderVal;
+  update(sliderVal);
+}
+
+function update(sliderVal) {
+  const scale = sliderVal / 100;
+  const scaleLabel = '× ' + scale.toFixed(2);
+  document.getElementById('scale-label').textContent = scaleLabel;
+
+  const { h, grads, pres } = simulate(scale);
+
+  const satPct = h.filter(v => Math.abs(v) > 0.97).length / N * 100;
+  const meanGrad = mean(grads);
+  const preStd = std(pres);
+
+  document.getElementById('m-sat').textContent = satPct.toFixed(1) + '%';
+  document.getElementById('m-grad').textContent = meanGrad.toFixed(3);
+  document.getElementById('m-std').textContent = preStd.toFixed(2);
+
+  const setBadge = (id, cls, txt) => { const el = document.getElementById(id); el.className = 'badge ' + cls; el.textContent = txt; };
+
+  if (satPct > 50) { setBadge('m-sat-badge', 'badge-bad', 'saturated'); }
+  else if (satPct > 15) { setBadge('m-sat-badge', 'badge-warn', 'some sat.'); }
+  else { setBadge('m-sat-badge', 'badge-good', 'healthy'); }
+
+  if (meanGrad < 0.1) { setBadge('m-grad-badge', 'badge-bad', 'dying'); }
+  else if (meanGrad < 0.5) { setBadge('m-grad-badge', 'badge-warn', 'weak'); }
+  else { setBadge('m-grad-badge', 'badge-good', 'flowing'); }
+
+  if (preStd < 0.5) { setBadge('m-std-badge', 'badge-warn', 'too small'); }
+  else if (preStd > 4) { setBadge('m-std-badge', 'badge-bad', 'too large'); }
+  else { setBadge('m-std-badge', 'badge-good', 'good range'); }
+
+  const hHist = histogram(h, 20, -1.05, 1.05);
+  chartH.data.labels = hHist.labels;
+  chartH.data.datasets[0].data = hHist.counts;
+  chartH.update('none');
+
+  const gHist = histogram(grads, 20, -0.05, 1.05);
+  chartG.data.labels = gHist.labels;
+  chartG.data.datasets[0].data = gHist.counts;
+  chartG.update('none');
+
+  const annEl = document.getElementById('scale-annotation');
+  if (scale > 0.5) annEl.textContent = `← std ≈ ${scale.toFixed(2)} (too large — tanh saturates!)`;
+  else if (scale < 0.08) annEl.textContent = `← std ≈ ${scale.toFixed(2)} (too small — no signal!)`;
+  else annEl.textContent = `← std ≈ ${scale.toFixed(2)} ✓  (good range)`;
+
+  const ins = document.getElementById('insight-box');
+  const kaimingScale = (1 / Math.sqrt(FAN_IN)).toFixed(3);
+  if (satPct > 50) {
+    ins.textContent = `${satPct.toFixed(0)}% of neurons are stuck at ±1. Their gradient is ≈ 0, so backprop has almost nothing to flow back. The fix: multiply W1 by ${kaimingScale} (= 1/√30, the Kaiming init for this layer).`;
+  } else if (satPct > 15) {
+    ins.textContent = `Getting better — some saturation remains. Try dragging to × 0.18 (= 1/√30) to see the ideal Kaiming distribution.`;
+  } else if (scale < 0.06) {
+    ins.textContent = `Now the opposite problem: activations are tiny, gradients are small too, and the network learns very slowly. Good initialization balances both extremes.`;
+  } else {
+    ins.textContent = `This is the healthy zone: activations spread across (−1, 1), gradients flow freely, and the network can learn at full speed. In your code: W1 = torch.randn(...) * ${scale.toFixed(3)}`;
+  }
+}
+
+document.getElementById('scale-slider').addEventListener('input', e => update(+e.target.value));
+update(100);
+</script>
