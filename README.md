@@ -1,6 +1,12 @@
 # Neural Networks
 
-A personal learning repository for understanding neural networks from the ground up
+A personal learning repository for understanding neural networks from the ground up.
+
+
+## Resources
+
+- [Andrej Karpathy's Neural Networks: Zero to Hero](https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ)
+- [Daniel Bourke - Learn Pytorch for deep learning](https://youtu.be/Z_ikDlimN6A?si=8mKcCGbLTdbcQUtg)
 
 ## Topics Covered
 
@@ -16,6 +22,7 @@ A personal learning repository for understanding neural networks from the ground
 | 8 | **MLP Language Model** | `notebook/bigram-make-more-mlp/mlp.ipynb` | Multi-layer perceptron for character-level prediction |
 | 9 | **Backprop Ninja** | `notebook/backpropninja/build_makemore_backprop ninja.ipynb` | Manual backprop through the MLP (exercises) |
 | 10 | **WaveNet** | `notebook/wavenet/wavenet.ipynb` | WaveNet-style deep network with dilated causal structure |
+| 11 | **nano-GPT (Bigram)** | `notebook/nano-gpt/biagram.py` | Bigram language model on Tiny Shakespeare with training loop & text generation |
 
 ## Key Concepts Explored
 
@@ -23,6 +30,7 @@ A personal learning repository for understanding neural networks from the ground
 - **Weight Initialization** — understanding how initialization affects training (tanh saturation, etc.)
 - **Batch Normalization** — what it does, why it helps, and a from-scratch implementation
 - **Character-level Language Models** — bigram → MLP → WaveNet progression on a 32K names dataset
+- **GPT-style Text Generation** — bigram language model trained on Tiny Shakespeare with autoregressive generation
 - **Building from Scratch** — implementing `Value`, `Neuron`, `Layer`, and `MLP` classes by hand
 
 ## Repository Structure
@@ -36,7 +44,8 @@ neural_networks/
 │   ├── backpropninja/              # Manual backprop exercises
 │   ├── bigram-make-more/           # Bigram character-level model
 │   ├── bigram-make-more-mlp/       # MLP character-level model
-│   └── wavenet/                    # WaveNet architecture
+│   ├── wavenet/                    # WaveNet architecture
+│   └── nano-gpt/                   # GPT-style bigram language model
 ├── models/                         # Saved model weights
 └── LICENSE
 ```
@@ -52,8 +61,11 @@ cd neural_networks
 python -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies
-pip install torch numpy matplotlib jupyter
+# Install PyTorch (pick the right command for your OS/CUDA version)
+# https://pytorch.org/get-started/locally/
+
+# Install other dependencies
+pip install -r requirements.txt
 
 # Launch the notebooks
 jupyter notebook
