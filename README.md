@@ -12,8 +12,8 @@ A personal learning repository for understanding neural networks from the ground
 
 | # | Topic | Notebook | Description |
 |---|-------|----------|-------------|
-| 1 | **PyTorch Fundamentals** | `notebook/fundamentals.ipynb` | Tensors, operations, and core PyTorch concepts |
-| 2 | **PyTorch Workflow** | `notebook/pytorch_workflow.ipynb` | End-to-end model building, training, and saving/loading |
+| 1 | **PyTorch Fundamentals** | `notebook/pytorch-fundamentals/fundamentals.ipynb` | Tensors, operations, and core PyTorch concepts |
+| 2 | **PyTorch Workflow** | `notebook/pytorch-fundamentals/pytorch_workflow.ipynb` | End-to-end model building, training, and saving/loading |
 | 3 | **Derivatives** | `notebook/backpropgation/derivatives.ipynb` | Understanding derivatives for backpropagation |
 | 4 | **Manual Backpropagation** | `notebook/backpropgation/manual_backpropgation.ipynb` | Hand-computing gradients through a network |
 | 5 | **Backprop with Neurons** | `notebook/backpropgation/manual_backprogation_neuron.ipynb` | Backpropagation applied to individual neurons |
@@ -38,8 +38,7 @@ A personal learning repository for understanding neural networks from the ground
 ```
 neural_networks/
 ├── notebook/
-│   ├── fundamentals.ipynb          # PyTorch fundamentals
-│   ├── pytorch_workflow.ipynb      # PyTorch model workflow
+│   ├── pytorch-fundamentals/          # PyTorch fundamentals & workflow
 │   ├── backpropgation/             # Derivatives & backprop from scratch
 │   ├── backpropninja/              # Manual backprop exercises
 │   ├── bigram-make-more/           # Bigram character-level model
