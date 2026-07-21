@@ -1,0 +1,7 @@
+# Generated SentencePiece tokenizer artifacts
+*.model
+*.vocab
+
+# Downloaded/training tokenizer data
+*.bpe
+toy.txt
