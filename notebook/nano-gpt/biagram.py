@@ -72,8 +72,8 @@ class MultiHeadAttention(nn.Module):
     
     def forward(self,x):
         out= torch.cat([h(x) for h in self.heads], dim=-1)
-        out= self.proj(out) 
-        return out 
+        out= self.dropout(self.proj(out))
+        return out
 
 class Head(nn.Module):
     """ one head of self-attention """
@@ -92,7 +92,7 @@ class Head(nn.Module):
         k = self.key(x)
         q = self.query(x) # B,T,C
         # compute attention scores (affinities)
-        wei  = q @ k.transpose(-2,-1) * C**-0.5 # (B,T,h) @ (B,h,T) -> (B,T,T)
+        wei  = q @ k.transpose(-2,-1) * k.shape[-1]**-0.5 # (B,T,h) @ (B,h,T) -> (B,T,T), scaled by 1/sqrt(head_size)
         wei = wei.masked_fill(self.tril[:T,:T] == 0, float('-inf')) # (B,T,T)
         wei = F.softmax(wei, dim=-1) # (B,T,T)
         wei = self.dropout(wei)
@@ -128,8 +128,8 @@ class Block(nn.Module):
         self.ln2 = nn.LayerNorm(n_embed)
 
     def forward(self, x):
-        x = self.sa(self.ln1(x))
-        x = self.ffwd(self.ln2(x)) # computation
+        x = x + self.sa(self.ln1(x))
+        x = x + self.ffwd(self.ln2(x)) # computation
         return x
 
 

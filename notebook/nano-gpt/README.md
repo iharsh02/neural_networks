@@ -44,7 +44,7 @@ Input Tokens
 ### Self-Attention
 - **Scaled dot-product attention** with key (K), query (Q), and value (V) projections
 - **Causal masking** using a lower-triangular matrix to prevent attending to future tokens
-- Scaling by `C^(-0.5)` to prevent softmax from becoming too peaky
+- Scaling by `head_size^(-0.5)` (i.e. `1/sqrt(d_k)`) so attention logits stay roughly unit-variance and softmax doesn't saturate / become too peaky
 
 ### Multi-Head Attention
 - Running **multiple attention heads in parallel**, each with `head_size = n_embed // num_heads`
@@ -84,7 +84,7 @@ The model was built incrementally, with each step improving val loss:
 | + Multi-Head | 4 heads (head_size=8, n_embed=32) | ~2.27 |
 | + FeedForward | FFN after attention | ~2.24 |
 | + Blocks + LayerNorm | 4 stacked transformer blocks | ~2.20 |
-| Scaled up | 6 layers, 384 embed, 6 heads, dropout | ~1.49 |
+| Scaled up | 6 layers, 384 embed, 6 heads, dropout | ~1.49 (needs re-measuring after the residual/scaling fixes — earlier number predates them) |
 
 ## Hyperparameters
 
